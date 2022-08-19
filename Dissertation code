@@ -1,1 +1,236 @@
+set.seed(78668)
+
+##############Summary statistics
+sum.statistics<-function(n, p){
+mean = n * p
+var = n * p * (1-p)
+std.deviation = sqrt(n * p * (1-p))
+return (c("mean" = mean, "variance" = var, 
+          "standard.deviation" = std.deviation))
+}
+
+statistics.BM = sum.statistics(136, 0.654)
+statistics.PH = sum.statistics(136, 0.713)
+
+##############plot of point and confidence interval 
+#for the treatments arms proportions, 24 months post randomisation
+Treatment_Measure<-c("I(BM)", "I+V(BM)", "I(PB)", "I+V(PB)") 
+Proportions<-c(0, 0.65, 0, 0.71)
+lower_lim<-c(0,0.57, 0,0.63)
+upper_lim<-c(0.26, 0.74, 0.26, 0.79)
+colour =c("red", "blue", "green", "orange")
+MRDdata <- data.frame(Treatment_Measure,Proportions,lower_lim, upper_lim)
+
+library("ggplot2")
+
+ggplot(MRDdata, aes (Treatment_Measure, Proportions)) +
+  geom_point() +
+  geom_errorbar(aes(ymin=lower_lim, 
+                    ymax = upper_lim), col =colour, pch = 16)
+
+#################forward Bayes method
+psi <- seq(0, 1, length.out = 100) #Range of the parameter of interest (proportion)
+  
+y=97; n = 136 #Pheripheral Blood
+
+# function for the product of likelihood and prior 
+likeh.prior<- function(psi){dbinom(y, n, psi)* dbeta(psi,1,1)}
+
+#Constant i.e Marginal of y
+marginal.constantPB<- integrate(likeh.prior, 0, 1)$value
+
+#Posterior distribution
+post.distrPB <- likeh.prior(psi)/marginal.constantPB
+plot(psi, post.distrPB, type = "l", ylab ="density", 
+     col = "blue", lwd = 2)
+
+#for Bone Marrow arm
+y=89; n = 136 
+marginal.constantBM<- integrate(likeh.prior, 0, 1)$value
+post.distrBM <- likeh.prior(psi)/marginal.constantBM
+lines(psi, post.distrBM, type = "l", ylab= "density", 
+      col = "red", lwd = 2)
+
+legend(.0, 10, c('Posterior - PB','Posterior - BM'),      
+       lty=c(1,1),col=c('blue', "red"))
+
+
+#################Reverse-Bayes method
+##############plot of likelihood function for I arm
+psi <- seq(0, 1, length.out = 100)
+plot(psi, dbinom(x =0 , size = 136,  prob = psi), 
+     col = "red", lwd = 2,
+     type = "l", xlab = "Likelihood function (I)", 
+     ylab = "Density")
+
+
+
+##############plot of likelihood function for I+V
+#PB
+plot(psi, dbinom(x= 97, prob = psi, size = 136), 
+     col='green', lwd =2, 
+            type = "l", xlab = "Likelihood for I+V", 
+     ylab = "Density")
+
+#BM
+lines(psi, dbinom(x= 89, prob = psi, size = 136), 
+      col='blue', lwd =2)
+
+legend(.0, 0.07, c('I+V (PB)','I+V (BM)'),      
+       lty=c(1,1),col=c('green', "blue"))
+
+
+##############Selecting the posterior distribution for the target outcome of interest 
+#Based  on FLAIR trial data and outcome of interest
+
+#Grid search for different beta parameters combination
+
+df <- expand.grid(a = 100:125,       
+                  b = 49:100)
+                  
+crit1 <- function(x){           #The first condition of interest
+  a <- x[1]; b <- x[2]
+  #Find the average of of samples that satisfies the condition
+  mean((rbeta(10^3, a, b)> 0.7))  
+}
+
+
+df$c1 <- apply(df, 1, crit1)  #grid search
+
+# mean or number of samples that satisfies condition 1
+
+sum(df$c1 > 0.7) 
+
+# finding those that satisfies the conditions
+df[which(df$c1 > 0.7),]  
+
+
+##############Plot of the posterior distributions.
+
+#First Selected values that satisfies the conditions
+a <- 124; b <- 49 
+
+plot(psi, dbeta (psi, a, b), col ="red", 
+     ylab = "Posteriors", type ="l", lwd =2)
+
+#Second Selected values that satisfies the conditions
+a <- 125; b <- 49 
+lines(psi, dbeta (psi, a, b), 
+      col ="blue", type ="l", lty = 4, lwd = 2)
+
+
+legend(.0, 11.0, c("Beta(124,49)", "Beta(125,49)"),      
+       lty=c(1,2),col=c('red', "blue"))
+
+
+
+###Plot of the prior and posterior distributions together (a) 
+a <- 35; b <- 2  #Prior parameter for BM
+
+plot(psi, dbeta (psi, a, b), col ="red", type ="l", 
+     xlab = "psi (proportions)", ylab = "densities", lwd = 2)
+
+a <- 27; b <- 10  #Prior parameter for PH
+
+lines(psi, dbeta (psi, a, b), col ="blue", 
+      type ="l", lwd = 2)
+
+#First Selected values that satisfies the conditions
+a <- 124; b <- 49   #Posterior parameter
+
+lines(psi, dbeta (psi, a, b), ylab = "Posteriors", type ="l", lwd =2)
+
+legend(.0, 13.0, c("Prior-BM, Beta(35,2)", 
+                   "Prior-PB, Beta(27,10)", "Posterior- Beta(124,49)"),      
+       lty=c(1,1,1),col=c('red', "blue", "black"))
+
+
+##############Plot of the prior and posterior distributions together (b) 
+a <- 36; b <- 2 
+
+plot(psi, dbeta (psi, a, b), col ="red", lty =2,  
+     type ="l", xlab = "psi (proportions)", ylab = "densities", lwd = 2)
+
+a <- 28; b <- 10 
+
+lines(psi, dbeta (psi, a, b), col ="blue", 
+      lty = 2, type ="l", lwd = 2)
+
+#First Selected values that satisfies the conditions
+a <- 125; b <- 49 
+
+lines(psi, dbeta (psi, a, b), ylab = "Posteriors", lty = 2, type ="l", lwd =2)
+
+legend(.0, 13.0, c("Prior-BM, Beta(36,2)", 
+                   "Prior-PB, Beta(28,10)", "Posterior- Beta(125,49)"),      
+       lty=c(2,2,2),col=c('red', "blue", "black"))
+
+
+##############Estimation of parameters and other Statistics computation
+estimation<-function(a,b){
+  mean = a/(a+b)
+  var = (a*b) / ((a+b)^2 * (a +b+1))
+  std.deviation = sqrt(var)
+  skewness =(2*(b-a) *sqrt(a+b+1)) / ((a+b+2)* sqrt(a+b))
+  kurtosis = (6*((a-b)^2 * (a+b+1) - (a*b) * (a+b+2))) / 
+    ((a*b)*(a+b+2)*(a+b+3))
+  return (c("mean" = mean, "variance" = var, 
+            "standard.deviation" = std.deviation, 
+            "skewness" = skewness, "kurtosis" = kurtosis))
+}
+estimationBM = estimation(36, 2)
+estimationBM
+
+estimationPB = estimation(28, 10)
+estimationPB
+
+
+##############Obtaining the quantiles
+quantiles.estimate<-function(a, b){
+  y= c(0.05, 0.25, 0.50, 0.75, 0.95)
+  X = qbeta(y, a, b)
+  return ("quantiles" = X)
+}
+
+qt.BM = quantiles.estimate(36,2)
+qt.BM
+
+qt.PB = quantiles.estimate(28,10)
+qt.PB
+
+
+
+##############Hypothesis Testing
+
+piror.odds<-function(y, n, H1, H0){
+  post.odds= seq(1,2, 0.2)
+  Bayes_factor = dbinom(y,  n, H1)/ dbinom(y,  n, H0)
+  prior = post.odds / Bayes_factor
+  return ("prior odd is" = prior)
+}
+BMBayes_factor = dbinom(89,  136, 0.8)/ dbinom(89,  136, 0.5)
+
+BMprior_odds = piror.odds(y = 89, n = 136, H1 = 0.8, H0 = 0.5)
+
+PBBayes_factor = dbinom(97,  136, 0.8)/ dbinom(97,  136, 0.5)
+
+PBprior_odds = piror.odds(y = 97, n = 136, H1 = 0.8, H0 = 0.5)
+
+post.odds= seq(1,2, 0.2) #Various posterior odds examined
+
+##############  Prior odd vs posterior odds plots.
+plot(post.odds, PBprior_odds*10000, col ="purple",  
+      type ="b", xlab = " Posterior Odd ", ylab = "Prior odds", lwd = 2)
+
+plot(post.odds, BMprior_odds, col ="red",  type ="b", 
+     xlab = " Posterior Odd", ylab = "Prior odds", lwd = 2, ylim = c(2,12))
+
+lines(post.odds, PBprior_odds*100000, col ="purple",   #Scaled prior odds for PB
+      type ="b", xlab = " Posterior Odd ", ylab = "Prior odds", lwd = 2)
+
+legend(1.0, 12.0, c("BM","PB"),      
+       lty=c(1,1),col=c('red', "purple"))
+
+
+
 
